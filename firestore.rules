@@ -1,0 +1,46 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == "YOUR_ADMIN_EMAIL";   // <-- admin ka email likho
+    }
+
+    match /services/{id} {
+      allow read: if true;
+      allow create, update: if isAdmin()
+        && request.resource.data.name is string && request.resource.data.name.size() < 100
+        && request.resource.data.desc.size() < 300;
+      allow delete: if isAdmin();
+    }
+    match /settings/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /news/{id} {
+      allow read: if true;
+      allow create, update: if isAdmin() && request.resource.data.text.size() < 300;
+      allow delete: if isAdmin();
+    }
+    match /posts/{id} {
+      allow read: if true;
+      allow create, update: if isAdmin()
+        && request.resource.data.title.size() < 150
+        && request.resource.data.body.size() < 2000
+        && request.resource.data.image.size() < 900000;
+      allow delete: if isAdmin();
+    }
+    match /orders/{id} {
+      // customer (anonymous login) sirf apna order bana sakta aur dekh sakta hai
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'new'
+        && request.resource.data.keys().hasOnly(['uid','service','name','mobile','details','status','createdAt'])
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.service is string && request.resource.data.service.size() < 100
+        && request.resource.data.name is string && request.resource.data.name.size() < 80
+        && request.resource.data.mobile.matches('^[0-9]{10}$')
+        && request.resource.data.details.size() < 500;
+      allow read: if isAdmin() || (request.auth != null && resource.data.uid == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+  }
+}
